@@ -1,0 +1,384 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta charset="utf-8" />
+  <link rel="icon" href="/blocks/icon.svg?v22">
+  <script src="/blocks/app.js?v13"></script>
+  <title>Blocks</title>
+  <style>
+    :root {
+    }
+    html, body { height: 100%; width: 100%; }
+    body {
+      display: flex; 
+      justify-content: center;
+      font-family: Arial; 
+      margin: 0; 
+      background: hsl(245, 20%, 10%); 
+    }
+    body:not(.portrait) { align-items: start; }
+    body.portrait { align-items: end; }
+    #app {
+      display: flex;
+      position: relative;
+      align-items: center;
+      justify-content: center;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), min(40px, calc(100vw/var(--cols))));
+      grid-template-rows: repeat(var(--lines), min(40px, calc(100vh/var(--lines))));
+      border-left: 1px solid black;
+    }
+    body[data-gamestatus="paused"] #grid,
+    body[data-gamestatus="paused"] #scoreBug,
+    body[data-gamestatus="gameover"] #grid,
+    body[data-gamestatus="gameover"] #scoreBug {
+      opacity: .8;
+    }
+    .coord {
+      box-sizing: border-box;
+      background: #202632;
+      border-top: 1px solid black;
+      border-right: 1px solid black;
+    }
+    .coord.on { background: green; border-radius: 2px; }
+    .coord.on.I { background: hsl(180, 75%, 60%); }
+    .coord.on.J { background: hsl(240, 75%, 60%); }
+    .coord.on.L { background: hsl(40, 75%, 60%); }
+    .coord.on.O { background: hsl(60, 75%, 60%); }
+    .coord.on.S { background: hsl(120, 75%, 60%); }
+    .coord.on.Z { background: hsl(0, 75%, 60%); }
+    .coord.on.T { background: hsl(300, 75%, 60%); }
+    .coord.highlight { border: 2px dashed white; }
+
+    #startButton {
+      position: absolute;
+      bottom: 30%;
+      font-size: 2.2em;
+      min-width: 5em;
+      font-family: inherit;
+      background: hsl(330, 70%, 50%);
+      color: white;
+      font-variant: all-petite-caps;
+      border-color: white;
+      z-index: 5;
+    }
+    #scoreBug, #scoreBox {
+      min-width: 100px;
+      display: flex;
+      justify-content: center;
+      color: lightgray;
+      user-select: none;
+    }
+    #scoreBug {
+      position: fixed;
+      height: 50px;
+      top: 20px;
+      font-size: 2em;
+      align-items: center;
+      background: hsl(195, 55%, 80%, .2);
+      border-radius: 5px;
+    }
+    #scoreBox {
+      position: absolute;
+      top: 25%;
+      background: hsl(227, 25%, 25%);
+      width: 350px;
+      display: flex;
+      flex-direction: column;
+      justify-content: start;
+      align-items: center;
+      gap: 15px;
+      padding: 10px 0;
+      font-size: 1.5rem;
+    }
+    #scoreBoxTitle { display: flex; }
+    #scoreBoxList { display: flex; flex-direction: column; width: 100%; }
+    #scoreClearButton { background: transparent; border: none; color: orange; }
+    body:not(.debug) #scoreBoxTitle { display: none; }
+    .scoreEntry {
+      height: 30px;
+      margin: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: Courier New, monospace;
+      font-size: 1.3rem;
+      text-transform: uppercase;
+      overflow: hidden;
+    }
+    .scoreEntry:nth-child(2n) { background: hsl(195, 55%, 80%, .2); }
+    .scoreEntry > div { padding: 0 5px; display: flex; justify-content: center; overflow: hidden; }
+    .scoreEntry > div:nth-child(1) { width: 25%; }
+    .scoreEntry > div:nth-child(2) { width: 50%; }
+    .scoreEntry > div:nth-child(3) { width: 25%; }
+    .scoreEntry.newscore { color: cyan; }
+    .scoreEntry input {
+      background: transparent;
+      border: none;
+      font-family: inherit;
+      color: inherit;
+      font-size: inherit;
+      margin: 0;
+      padding: 0 5px;
+      width: 25%;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    body[data-gamestatus="unstarted"] #scoreBug { display: none; }
+    body[data-gamestatus="started"] #startButton { display: none; }
+    body[data-gamestatus="started"] #scoreBox { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="grid"></div>
+    <button id="startButton">Start</button>
+    <div id="scoreBug">Score</div>
+    <div id="scoreBox">
+      <div id="scoreBoxTitle">
+        <button id="scoreClearButton">Clear</button>
+      </div>
+      <div id="scoreBoxList"></div>
+    </div>
+  </div>
+  <script>
+    function addSwipeEvent(el, hthreshold, vthreshold, fn) {
+      let x0, y0;
+      el.addEventListener('touchstart', (e) => {
+        x0 = e.touches[0].screenX;
+        y0 = e.touches[0].screenY;
+      });
+      el.addEventListener('touchmove', (e) => {
+        if (!x0 || !y0) return;
+        x1 = e.touches[0].screenX;
+        y1 = e.touches[0].screenY;
+        const xdiff = x0 - x1;
+        const ydiff = y0 - y1;
+        let direction = null;
+        if (Math.abs(xdiff) > Math.abs(ydiff)) {
+          if (xdiff >= hthreshold) {
+            direction = 'left';
+          } else if (xdiff <= -hthreshold) {
+            direction = 'right';
+          }
+        } else {
+          if (ydiff >= vthreshold) {
+            direction = 'up';
+          } else if (ydiff <= -vthreshold) {
+            direction = 'down';
+          }
+        }
+        if (direction) {
+          x0 = x1;
+          y0 = y1;
+          fn(direction);
+        }
+      });
+    }
+
+    const portrait = screen.orientation.type.startsWith("portrait-");
+    const params = new URLSearchParams(window.location.search);
+    const debugflag = params.get('debug') == 1;
+    document.body.classList.toggle('portrait', portrait);
+    document.body.classList.toggle('debug', debugflag);
+
+    const GameDataKey = "arcade-blocks";
+    const DefaultName = "AAA";
+    const DefaultGameData = {
+      'scores':[
+        {id:1, name:DefaultName, score:0},
+        {id:2, name:DefaultName, score:0},
+        {id:3, name:DefaultName, score:0},
+        {id:4, name:DefaultName, score:0}
+      ]
+    };
+    let gameData = JSON.parse(localStorage.getItem(GameDataKey)) || DefaultGameData;
+    let nInput = null;
+    let previousName = null;
+    let gameState = null;
+
+    const { start, stop, arrow, space, shiftPiece } = init(onGameStateChange);
+
+    scoreClearButton.addEventListener('click', (e) => {
+      gameData = DefaultGameData;
+      localStorage.setItem(GameDataKey, JSON.stringify(gameData));
+      render();
+    });
+
+    app.addEventListener("fullscreenchange", (e) => {
+      if (document.fullscreenElement) {
+        console.log('full screen');
+      } else {
+        stop();
+      }
+    });
+
+    function onGameStateChange(newGameState, currentScore) {
+      if (portrait && newGameState == GameStatusType.Started) {
+        app.requestFullscreen();
+      }
+      gameState = newGameState;
+      let newScoreId;
+      if (gameState == GameStatusType.Gameover) {
+        if (document.fullscreenElement !== null) {
+          document.exitFullscreen();
+        }
+        if (currentScore != undefined) {
+          newScoreId = Math.max(...gameData.scores.map(n => n.id)) + 1;
+          const newScore = {
+            id: newScoreId,
+            name: previousName || DefaultName,
+            score: currentScore.score,
+            level: currentScore.level
+          };
+          gameData.scores.push(newScore);
+          gameData.scores.sort((s1,s2) => {
+            return (s2.score - s1.score) || (s2.id - s1.id);
+          });
+          gameData.scores = gameData.scores.slice(0, 6);
+        }
+      }
+      render(newScoreId);
+    }
+
+    function render(newScoreId) {
+      renderGameStatus();
+      renderScoreBox(newScoreId);
+    }
+
+    function renderGameStatus() {
+      switch (gameState) {
+        case GameStatusType.Unstarted:
+          startButton.innerText = "Start";
+          break;
+        case GameStatusType.Started:
+          startButton.innerText = "Pause";
+          break;
+        case GameStatusType.Paused:
+          startButton.innerText = "Paused";
+          break;
+        case GameStatusType.Gameover:
+          startButton.innerText = "New Game";
+          break;
+      }
+      document.body.dataset.gamestatus = gameState;
+    }
+
+    function renderScoreBox(newScoreId) {
+      nInput = null;
+      scoreBoxList.replaceChildren();
+      const header = document.createElement('div');
+      header.className = "scoreEntry header";
+      const hname = document.createElement('div');
+      hname.innerText = "Name";
+      const hscore = document.createElement('div');
+      hscore.innerText = "Score";
+      const hlevel = document.createElement('div');
+      hlevel.innerText = "Lvl";
+      header.append(hname, hscore, hlevel);
+      scoreBoxList.append(header);
+
+      gameData.scores.sort((s1,s2) => s1.score <= s2.score);
+      gameData.scores.forEach((data) => {
+        const el = document.createElement('div');
+        el.className = "scoreEntry";
+        if (data.id == newScoreId) {
+          el.classList.add('newscore');
+          nInput = document.createElement('input');
+          nInput.value = data.name;
+          nInput.addEventListener('keyup', (e) => {
+            nInput.value = nInput.value.replaceAll(" ","").slice(0, 6);
+            data.name = nInput.value;
+            switch (e.keyCode) {
+              case 13: // Enter Key
+                previousName = nInput.value;
+                localStorage.setItem(GameDataKey, JSON.stringify(gameData));
+                renderScoreBox();
+                break;
+            }
+          });
+          el.append(nInput);
+        } else {
+          const nEl = document.createElement('div');
+          nEl.innerText = data.name;
+          el.append(nEl);
+        }
+        const sEl = document.createElement('div');
+        sEl.innerText = data.score;
+        const lEl = document.createElement('div');
+        lEl.innerText = data.level || "-";
+        el.append(sEl, lEl);
+        scoreBoxList.append(el);
+      });
+      if (nInput) nInput.focus();
+    }
+
+    startButton.addEventListener('click', (e) => {
+      if (nInput) {
+        previousName = nInput.value;
+        localStorage.setItem(GameDataKey, JSON.stringify(gameData));
+      }
+      switch (gameState) {
+        case GameStatusType.Unstarted:
+          start();
+          break;
+        case GameStatusType.Started:
+          stop();
+          break;
+        case GameStatusType.Paused:
+          start(false);
+          break;
+        case GameStatusType.Gameover:
+          start(true);
+          break;
+      }
+    });
+
+    const hthreshold = 25;
+    const vthreshold = 60;
+
+    addSwipeEvent(window, hthreshold, vthreshold, (direction) => {
+      if (gameState == GameStatusType.Started) {
+        shiftPiece(direction);
+      }
+    });
+
+    window.addEventListener('dblclick', (e) => {
+      switch (gameState) {
+        case GameStatusType.Started:
+          stop();
+          break;
+        case GameStatusType.Paused:
+          start(false);
+          break;
+      }
+    });
+
+    window.onkeydown = function(e) {
+      if (gameState == GameStatusType.Started) {
+        switch (e.keyCode) {
+          case 32: // Space
+            space(e);
+            break;
+          case 37: // Left
+            arrow(e);
+            break;
+          case 38: // Up
+            arrow(e);
+            break;
+          case 39: // Right
+            arrow(e);
+            break;
+          case 40: // Down
+            arrow(e);
+            break;
+        }
+      }
+    }
+
+  </script>
+</body>
+</html>
