@@ -18,7 +18,7 @@
       background: hsl(245, 20%, 10%); 
     }
     body:not(.portrait) { align-items: start; }
-    body.portrait { align-items: end; }
+    body.portrait { align-items: end; overflow: hidden; }
     #app {
       display: flex;
       position: relative;
@@ -27,8 +27,8 @@
     }
     #grid {
       display: grid;
-      grid-template-columns: repeat(var(--cols), min(40px, calc(100vw/var(--cols))));
-      grid-template-rows: repeat(var(--lines), min(40px, calc(100vh/var(--lines))));
+      grid-template-columns: repeat(var(--cols), min(40px, calc(100dvw/var(--cols))));
+      grid-template-rows: repeat(var(--lines), min(40px, calc(100dvh/var(--lines))));
       border-left: 1px solid black;
     }
     body[data-gamestatus="paused"] #grid,
@@ -85,7 +85,8 @@
       position: absolute;
       top: 25%;
       background: hsl(227, 25%, 25%);
-      width: 350px;
+      width: 98%;
+      max-width: 350px;
       display: flex;
       flex-direction: column;
       justify-content: start;
@@ -128,7 +129,7 @@
       text-align: center;
     }
     body[data-gamestatus="unstarted"] #scoreBug { display: none; }
-    body[data-gamestatus="started"] #startButton { display: none; }
+    body[data-gamestatus="started"] #startButton { display: none; pointer-events: none; }
     body[data-gamestatus="started"] #scoreBox { display: none; }
   </style>
 </head>
@@ -157,6 +158,11 @@
     }
 
     const enableFullScreen = !iOS();
+    const portrait = screen.orientation.type.startsWith("portrait-");
+    const params = new URLSearchParams(window.location.search);
+    const debugflag = params.get('debug') == 1;
+    document.body.classList.toggle('portrait', portrait);
+    document.body.classList.toggle('debug', debugflag);
 
     function addSwipeEvent(el, hthreshold, vthreshold, fn) {
       let x0, y0;
@@ -191,12 +197,6 @@
         }
       });
     }
-
-    const portrait = screen.orientation.type.startsWith("portrait-");
-    const params = new URLSearchParams(window.location.search);
-    const debugflag = params.get('debug') == 1;
-    document.body.classList.toggle('portrait', portrait);
-    document.body.classList.toggle('debug', debugflag);
 
     const GameDataKey = "arcade-blocks";
     const DefaultName = "AAA";
@@ -332,6 +332,10 @@
     }
 
     startButton.addEventListener('click', (e) => {
+      let currentClick = new Date().getTime();
+      if (currentClick - lastDblClick < 300) {
+        return;
+      }
       if (nInput) {
         previousName = nInput.value;
         localStorage.setItem(GameDataKey, JSON.stringify(gameData));
@@ -361,7 +365,16 @@
       }
     });
 
+    let lastDblClick = 0;
+
     window.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      let currentDblClick = new Date().getTime();
+      if (currentDblClick - lastDblClick < 300) {
+        return;
+      }
+      lastDblClick = currentDblClick;
       switch (gameState) {
         case GameStatusType.Started:
           stop();

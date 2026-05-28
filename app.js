@@ -435,15 +435,15 @@ function init(onGameStateChange) {
       return;
     }
     gameStatus = GameStatusType.Started; 
-    onGameStateChange(gameStatus, score);
     falling = true;
     let t0;
     let d0;
     let queued_resolve = false;
     let lock_piece = false;
-    let lastVisibleY;
 
     requestAnimationFrame(loop);
+
+    onGameStateChange(gameStatus, score);
 
     function loop(t1) {
       if (t0 === undefined) t0 = t1;
