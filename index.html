@@ -145,6 +145,19 @@
     </div>
   </div>
   <script>
+    function iOS() {
+      return [
+        'iPad Simulator',
+        'iPhone Simulator',
+        'iPod Simulator',
+        'iPad',
+        'iPhone',
+        'iPod'
+      ].includes(navigator.platform)
+    }
+
+    const enableFullScreen = !iOS();
+
     function addSwipeEvent(el, hthreshold, vthreshold, fn) {
       let x0, y0;
       el.addEventListener('touchstart', (e) => {
@@ -208,22 +221,24 @@
       render();
     });
 
-    app.addEventListener("fullscreenchange", (e) => {
-      if (document.fullscreenElement) {
-        console.log('full screen');
-      } else {
-        stop();
-      }
-    });
+    if (enableFullScreen) {
+      app.addEventListener("fullscreenchange", (e) => {
+        if (document.fullscreenElement) {
+          console.log('full screen');
+        } else {
+          stop();
+        }
+      });
+    }
 
     function onGameStateChange(newGameState, currentScore) {
-      if (portrait && newGameState == GameStatusType.Started) {
+      if (portrait && enableFullScreen && newGameState == GameStatusType.Started) {
         app.requestFullscreen();
       }
       gameState = newGameState;
       let newScoreId;
       if (gameState == GameStatusType.Gameover) {
-        if (document.fullscreenElement !== null) {
+        if (document.fullscreenElement !== null && enableFullScreen) {
           document.exitFullscreen();
         }
         if (currentScore != undefined) {
